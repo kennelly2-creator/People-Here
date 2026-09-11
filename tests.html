@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>People Here — distance tests</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+<header class="masthead"><span class="brand">People Here — tests</span></header>
+<main id="out"></main>
+<script src="./js/distance.js"></script>
+<script>
+(function () {
+  var results = [];
+  function check(name, pass, detail) { results.push({ name: name, pass: pass, detail: detail || '' }); }
+  function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+  var D = window.Distance;
+
+  // Known reference: 1 degree of latitude at the equator ≈ 111.2 km
+  var oneDeg = D.haversineMeters(0, 0, 1, 0);
+  check('1° latitude ≈ 111.2 km', near(oneDeg, 111195, 300), Math.round(oneDeg) + ' m');
+
+  // Identity
+  check('same point is 0 m', D.haversineMeters(40.7128, -74.006, 40.7128, -74.006) === 0);
+
+  // Symmetry
+  var ab = D.haversineMeters(51.5, -0.12, 48.857, 2.352);
+  var ba = D.haversineMeters(48.857, 2.352, 51.5, -0.12);
+  check('symmetric', near(ab, ba, 0.001));
+
+  // London → Paris ≈ 343 km
+  check('London → Paris ≈ 343 km', near(ab, 343000, 3000), Math.round(ab / 1000) + ' km');
+
+  // Short hop: ~100 m north
+  var hop = D.haversineMeters(37.7749, -122.4194, 37.775799, -122.4194);
+  check('~100 m hop', near(hop, 100, 2), hop.toFixed(1) + ' m');
+
+  // Antimeridian pair
+  var anti = D.haversineMeters(0, 179.9, 0, -179.9);
+  check('crosses antimeridian (≈22 km, not 40 000)', anti < 25000, Math.round(anti) + ' m');
+
+  // Formatting
+  check('formats metres', D.formatDistance(35) === '35 m', D.formatDistance(35));
+  check('formats km', D.formatDistance(1400) === '1.4 km', D.formatDistance(1400));
+
+  // Validation
+  check('rejects bad latitude', !D.isValidLat(91) && !D.isValidLat(NaN) && D.isValidLat(-33.9));
+  check('rejects bad longitude', !D.isValidLon(181) && D.isValidLon(151.2));
+
+  // Ranking + radius matching
+  var places = [
+    { id: 'far', name: 'Hamilton Gym', latitude: 37.79, longitude: -122.4194, radiusMeters: 150 },
+    { id: 'here', name: 'Bluebird Coffee', latitude: 37.77493, longitude: -122.4194, radiusMeters: 150 }
+  ];
+  var ranked = D.rankPlaces(places, 37.7749, -122.4194);
+  check('nearest first', ranked[0].place.id === 'here', ranked.map(function (r) { return r.place.id; }).join(', '));
+  check('inside radius detected', ranked[0].inside === true);
+  check('outside radius detected', ranked[1].inside === false, D.formatDistance(ranked[1].meters));
+
+  var failed = results.filter(function (r) { return !r.pass; }).length;
+  var out = document.getElementById('out');
+  var head = document.createElement('h1');
+  head.textContent = failed ? failed + ' of ' + results.length + ' failed' : 'All ' + results.length + ' passed';
+  out.appendChild(head);
+  var list = document.createElement('ul');
+  list.className = 'people';
+  results.forEach(function (r) {
+    var li = document.createElement('li');
+    var p = document.createElement('p');
+    p.className = 'place-name';
+    p.textContent = (r.pass ? '✓ ' : '✗ ') + r.name;
+    p.style.color = r.pass ? 'var(--color-accent-700)' : 'var(--color-accent-2-700)';
+    p.style.fontSize = '20px';
+    li.appendChild(p);
+    if (r.detail) {
+      var d = document.createElement('p');
+      d.className = 'place-count';
+      d.textContent = r.detail;
+      li.appendChild(d);
+    }
+    list.appendChild(li);
+  });
+  out.appendChild(list);
+})();
+</script>
+</body>
+</html>
